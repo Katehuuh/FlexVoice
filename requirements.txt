@@ -1,19 +1,16 @@
 # Core Dependencies
 gradio>=4.0.0
-gradio-webrtc>=0.3.0
+gradio-webrtc==0.0.31
 numpy>=1.24.0
 torch>=2.0.0
 
 # Speech-to-Text (Whisper)
 transformers>=4.37.0
-flash-attn>=2.0.0  # Optional: for faster Whisper processing
-
-# Voice Activity Detection
-# Uses Silero VAD (downloaded automatically)
+# flash-attn>=2.0.0  # Optional: for faster Whisper processing
 
 # LLM Communication
 requests>=2.31.0
 
 # Text-to-Speech
-kokoro-onnx>=1.0.0
+kokoro-onnx==0.4.5
 onnxruntime>=1.16.0
