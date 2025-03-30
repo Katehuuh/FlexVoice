@@ -14,6 +14,23 @@ def process_pipeline(audio, conversation):
     # 3. LLM: Text prompt -> `send_to_llm` -> Text response
     # 4. Text-to-Speech: Text -> `initialize_tts`, `text_to_speech(text)` -> (audio_array, sample_rate)
 ```
+
+```mermaid
+flowchart TD
+    A(["`🎤 Start: Receive Audio Input (WebRTC)`"]) --> B
+    B["`🔍 Voice Activity Detection (VAD): Silero VAD (check_vad)`"] --> C{"`❓ Speech Detected?`"}
+    C -- Yes --> D["`🗣️ Speech-to-Text (STT): Whisper (transcribe_with_whisper)`"]
+    D --> E["`🤖 Language Model (LLM): OpenAI API (send_to_llm)`"]
+    E --> F["`🔊 Text-to-Speech (TTS): Kokoro (text_to_speech)`"]
+    F --> G(["`🎧 End: Output Audio Response (Gradio Interface)`"])
+    C -- No --> H(["`🚫 End: No Action`"])
+
+    class A,G,H output
+    class C decision
+    class B,D,E,F process
+```
+
+
 </details>
 
   - 🎤 Voice Activity Detection: (Silero VAD)
