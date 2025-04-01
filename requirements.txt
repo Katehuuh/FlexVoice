@@ -3,7 +3,7 @@ gradio>=4.0.0
 gradio-webrtc==0.0.31
 numpy>=1.24.0
 torch>=2.0.0
-
+torchaudio
 # Speech-to-Text (Whisper)
 transformers>=4.37.0
 # flash-attn>=2.0.0  # Optional: for faster Whisper processing
