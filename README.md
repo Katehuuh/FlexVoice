@@ -43,7 +43,7 @@ flowchart TD
 ```cmd
 # 📜 Requirements: Python>=3.8+, cu118+ (CUDA Toolkit for Whisper) and server openai-API (default: ooba webui)
 # 1. 🔧 Clone & Install dependencies:
-git clone https://github.com/yourusername/ModuVoice.git && cd ModuVoice
+git clone https://github.com/Katehuuh/FlexVoice.git && cd FlexVoice
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
 # 2. Run! Opens http://localhost:7861
