@@ -6,6 +6,7 @@ torch>=2.0.0
 torchaudio
 # Speech-to-Text (Whisper)
 transformers>=4.37.0
+insanely-fast-whisper
 # flash-attn>=2.0.0  # Optional: for faster Whisper processing
 
 # LLM Communication
