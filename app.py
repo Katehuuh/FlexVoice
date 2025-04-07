@@ -74,7 +74,7 @@ def load_whisper_model():
     attn_implementation = "flash_attention_2" if is_flash_attn_2_available() else "sdpa"
     return pipeline(
         "automatic-speech-recognition",
-        model="distil-whisper/distil-large-v2",
+        model="openai/whisper-large-v3-turbo", # distil-whisper/distil-large-v2
         torch_dtype=torch.float16,
         device="cuda" if torch.cuda.is_available() else "cpu",
         model_kwargs={"attn_implementation": attn_implementation}
