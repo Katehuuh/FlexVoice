@@ -114,22 +114,22 @@ def transcribe_audio(audio_array):
 def send_to_llm(prompt, conversation=None, model="ollama/mistral"):
     if conversation is None:
         conversation = []
+    system_prompt = "You are a voice assistant. Please respond concisely."
     
     # Convert Gradio messages to LLM format
-    llm_messages = []
+    llm_messages = [{"role": "system", "content": system_prompt}]
     for msg in conversation:
         if isinstance(msg["content"], (str, bool, int, float)):
             llm_messages.append({"role": msg["role"], "content": str(msg["content"])})
     
     base_url = os.getenv('OPENAI_API_BASE', 'http://127.0.0.1:5000/v1')
     api_key = os.getenv('OPENAI_API_KEY', 'sk-111111111111111111111111111111111111111111111111')
-    
+
     url = f"{base_url}/chat/completions"
     headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'}
-    
+
     messages = llm_messages + [{"role": "user", "content": prompt}]
-    # Use non-streaming mode
-    data = {'model': model, 'messages': messages, 'stream': False}
+    data = {'model': model, 'messages': messages, 'stream': False, 'max_tokens': 2000}
     
     try:
         print(f"\nSending request to LLM...")
@@ -218,13 +218,13 @@ def process_pipeline(audio, conversation):
     
     print("[DEBUG] VAD detected speech")
     
-    # Replace existing audio with placeholders to stop playback
+    # Hotfix: replace existing audio with placeholders to stop playback
     previous_messages = []
     for msg in conversation:
         if isinstance(msg["content"], gr.Audio):
             previous_messages.append({
                 "role": msg["role"],
-                "content": f"[Audio Message]"
+                "content": "" 
             })
         else:
             previous_messages.append(msg)
