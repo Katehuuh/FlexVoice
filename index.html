@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Browser LLM — Chat + Voice + Avatar</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+:root{--bg:#000;--text:#eaeaef;--muted:#7a7f94;--accent:#37c978;--accent2:#3b82f6;--danger:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000;color:var(--text);overflow:hidden;touch-action:manipulation}
+#cv{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;background:#000;cursor:pointer}
+#chatLayer{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column;pointer-events:none}
+#chatLayer>*{pointer-events:auto}
+.topbar{display:flex;align-items:center;padding:5px 10px;background:rgba(0,0,0,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-shrink:0;gap:6px;border-bottom:1px solid rgba(255,255,255,.06)}
+.brand{font-weight:700;font-size:12px;white-space:nowrap;opacity:.85;flex-shrink:0}
+.badges{display:flex;gap:3px;align-items:center;flex-wrap:wrap;flex:1;justify-content:center}
+.badge{font-size:8px;padding:2px 5px;border-radius:99px;font-weight:600;white-space:nowrap}
+.b-gpu{background:rgba(55,201,120,.2);color:var(--accent)}.b-cpu{background:rgba(59,130,246,.2);color:var(--accent2)}.b-api{background:rgba(255,165,0,.2);color:#ffa500}.b-off{background:rgba(255,255,255,.08);color:var(--muted)}
+.tps{font-size:8px;padding:2px 5px;border-radius:99px;background:rgba(55,201,120,.15);color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;display:none}.tps.on{display:inline}
+.b-st{font-size:8px;padding:2px 5px;border-radius:99px;background:rgba(255,255,255,.06);color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gear-btn{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 4px;flex-shrink:0}
+.pb-i{font-size:7px;padding:1px 4px;border-radius:99px;font-weight:600;white-space:nowrap;background:rgba(255,255,255,.05);color:var(--muted);transition:all .3s}
+.pb-i.ok{background:rgba(55,201,120,.15);color:var(--accent)}.pb-i.ld{background:rgba(255,165,0,.15);color:#ffa500;animation:pld 1.5s infinite}
+@keyframes pld{0%,100%{opacity:1}50%{opacity:.5}}
+.vad-area{display:flex;align-items:center;gap:3px;flex-shrink:0}
+.vad-dot{width:6px;height:6px;border-radius:50%;background:var(--danger);opacity:0;transition:opacity .15s}.vad-dot.on{opacity:1;animation:vblink 1s infinite}
+@keyframes vblink{0%,100%{opacity:1}50%{opacity:.4}}
+.vad-label{font-size:8px;color:var(--muted)}
+.ms{flex:1;padding:8px 10px;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:5px;pointer-events:auto;mask-image:linear-gradient(to bottom,transparent 0%,black 2%,black 97%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0%,black 2%,black 97%,transparent 100%)}
+.b{max-width:78%;padding:7px 11px;border-radius:12px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.b.u{align-self:flex-end;background:rgba(28,30,48,.78);border:1px solid rgba(255,255,255,.07);border-bottom-right-radius:4px}
+.b.a{align-self:flex-start;background:rgba(15,35,25,.72);border:1px solid rgba(55,201,120,.12);border-bottom-left-radius:4px}
+.b.s{align-self:center;background:transparent;color:var(--muted);font-size:9px;padding:1px 4px;text-align:center;backdrop-filter:none}
+.emo-tag{display:inline-block;font-size:9px;padding:1px 6px;border-radius:8px;background:rgba(255,255,255,.08);color:var(--muted);margin-top:4px}
+.cm{background:rgba(0,0,0,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:6px 8px;display:flex;gap:5px;align-items:flex-end;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)}
+.cm textarea{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:7px 14px;color:var(--text);font-size:13px;font-family:inherit;resize:none;outline:none;min-height:36px;max-height:100px;line-height:1.35}
+.cm textarea:focus{border-color:rgba(55,201,120,.4);background:rgba(255,255,255,.08)}
+.cm textarea::placeholder{color:rgba(255,255,255,.25)}
+.icon-btn{width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--muted);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.icon-btn:active{transform:scale(.93)}
+.mic-btn.listening{background:rgba(239,68,68,.8);border-color:var(--danger);color:white;animation:mpulse 1.5s infinite}
+@keyframes mpulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.35)}50%{box-shadow:0 0 0 10px rgba(239,68,68,0)}}
+.action-btn{border-radius:50%;border:none;width:36px;height:36px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.action-btn:active{transform:scale(.93)}
+.action-btn.send-mode{background:var(--accent);color:#020407}.action-btn.stop-mode{background:var(--danger);color:white}
+.set-ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center}.set-ov.on{display:flex}
+.set-sh{width:100%;max-width:920px;max-height:60vh;background:rgba(14,14,22,.95);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.08);border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden;animation:shUp .2s ease}
+@keyframes shUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.sh-hd{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.sh-hd span{font-size:13px;font-weight:700}.sh-hd button{background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 6px}
+.sh-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.sr{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sr label{font-size:11px;color:var(--muted);min-width:55px;flex-shrink:0}
+input[type=text]{background:rgba(255,255,255,.05);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px 9px;font-size:12px;outline:none;font-family:inherit;width:100%}
+input[type=text]:focus{border-color:var(--accent)}
+input[type=range]{-webkit-appearance:none;height:4px;background:rgba(255,255,255,.12);border-radius:2px;outline:none;flex:1}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer}
+.vl{font-size:10px;color:var(--text);min-width:28px;text-align:right;font-variant-numeric:tabular-nums}
+.rr{display:flex;gap:4px;flex-wrap:wrap}
+.rb{font-size:11px;padding:5px 10px;border-radius:99px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);cursor:pointer;transition:all .12s}
+.rb.on{border-color:var(--accent);color:var(--accent);background:rgba(55,201,120,.1)}.rb.off{opacity:.3;cursor:not-allowed}
+.combo{position:relative;flex:1;display:flex;min-width:0}
+.combo input{border-radius:8px 0 0 8px;border-right:none;flex:1;min-width:0}
+.combo .cb{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:0 8px 8px 0;color:var(--muted);padding:0 10px;cursor:pointer;font-size:10px}
+.sa{display:flex;gap:5px;flex-wrap:wrap}
+.btn{border-radius:20px;border:1px solid rgba(255,255,255,.1);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;transition:all .12s;display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.05);color:var(--text);font-family:inherit}
+.btn:active{transform:scale(.95)}.btn[disabled]{opacity:.35;cursor:default;transform:none}
+.bp{background:var(--accent);color:#020407;border-color:var(--accent)}.bd{color:var(--danger);border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.08)}
+.pw{height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;display:none;flex-shrink:0}.pw.on{display:block}
+.pb{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .2s}
+.inf{font-size:9px;color:var(--muted)}.inf.ok{color:var(--accent)}.inf.er{color:var(--danger)}
+.pk-ov{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}.pk-ov.on{display:flex}
+.pk-sh{width:100%;max-width:920px;max-height:55vh;background:rgba(14,14,22,.97);border-top:1px solid rgba(255,255,255,.08);border-radius:14px 14px 0 0;display:flex;flex-direction:column;overflow:hidden;animation:shUp .2s ease}
+.pk-hd{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.pk-hd span{font-size:12px;font-weight:600}.pk-hd button{background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px 6px}
+.pk-ls{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.pk-i{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.pk-i:active{background:rgba(55,201,120,.08)}.pk-i .nm{font-size:12px}.pk-i .sz{font-size:10px;color:var(--muted);margin-left:6px;flex-shrink:0}
+.pk-sep{padding:5px 12px;font-size:9px;color:var(--muted);background:rgba(255,255,255,.02);text-transform:uppercase;letter-spacing:.05em}
+@media(max-width:600px){.b{max-width:90%;font-size:12px;padding:6px 9px}.topbar{padding:4px 6px}.cm{padding:5px 6px}.cm textarea{padding:6px 12px;font-size:12px;min-height:34px}.icon-btn,.action-btn{width:34px;height:34px;font-size:14px}.brand{font-size:11px}}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="chatLayer">
+  <div class="topbar">
+    <div class="brand">Browser LLM</div>
+    <div class="badges">
+      <span id="bB" class="badge b-off">—</span>
+      <span class="tps" id="tps"></span>
+      <span id="bS" class="badge b-st">Ready</span>
+      <span class="pb-i" id="pbASR">ASR</span>
+      <span class="pb-i" id="pbTTS">TTS</span>
+      <span class="pb-i" id="pbEMO">EMO</span>
+    </div>
+    <div class="vad-area">
+      <span class="vad-dot" id="vadDot"></span>
+      <span class="vad-label" id="vadLabel"></span>
+    </div>
+    <button class="gear-btn" id="gearBtn">⚙</button>
+  </div>
+  <div id="ms" class="ms"></div>
+  <div class="cm">
+    <button class="icon-btn mic-btn" id="micB" title="Hands-free voice">🎤</button>
+    <textarea id="pr" placeholder="Speak or type…" rows="1"></textarea>
+    <button class="action-btn send-mode" id="actBtn" title="Send">▶</button>
+  </div>
+</div>
+<div class="set-ov" id="setOv"><div class="set-sh">
+  <div class="sh-hd"><span>⚙ Settings</span><button id="setX">✕</button></div>
+  <div class="sh-body">
+    <div id="gpuI" class="inf">Detecting…</div>
+    <div id="thrI" class="inf"></div>
+    <div class="sr"><label>Backend</label><div class="rr">
+      <button class="rb on" id="rG">⚡ GPU</button>
+      <button class="rb" id="rC">🔧 CPU</button>
+      <button class="rb" id="rA">🌐 API</button>
+    </div></div>
+    <div class="sr" id="apiRow" style="display:none"><label>Endpoint</label>
+      <input type="text" id="apiUrl" value="http://127.0.0.1:5000/v1/chat/completions" placeholder="OpenAI-compatible URL"></div>
+    <div class="sr" id="modelRow"><label>Model</label><div class="combo">
+      <input type="text" id="mI" placeholder="Pick or type" autocomplete="off" spellcheck="false">
+      <button class="cb" id="mB">▼</button></div></div>
+    <div class="sr"><label>TTS</label><div class="rr">
+      <button class="rb on" id="ttsSop">🎧 Soprano</button>
+      <button class="rb" id="ttsBr">🌐 Browser</button>
+    </div></div>
+    <div class="sr"><label>Temp</label><input type="range" id="tSl" min="0" max="2" step="0.1" value="0.7"><span class="vl" id="tVl">0.7</span></div>
+    <div class="sr"><label>Tokens</label><input type="range" id="kSl" min="64" max="2048" step="64" value="512"><span class="vl" id="kVl">512</span></div>
+    <div class="sa">
+      <button class="btn bp" id="bL">Load Model</button>
+      <button class="btn bd" id="bU" hidden>Unload</button>
+      <button class="btn" id="bCl" style="color:var(--muted)">Clear Chat</button>
+    </div>
+    <div class="pw" id="pW"><div class="pb" id="pB"></div></div>
+  </div>
+</div></div>
+<div class="pk-ov" id="pkO"><div class="pk-sh"><div class="pk-hd"><span>Select Model</span><button id="pkX">✕</button></div><div class="pk-ls" id="pkL"></div></div></div>
+
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display-lipsyncpatch/dist/index.min.js"></script>
+
+<!-- ══════════════════════════════════════════════════════════
+     SOPRANO TTS WORKER — runs in Web Worker via blob URL
+     Streams audio chunks at 32kHz during generation
+     ══════════════════════════════════════════════════════════ -->
+<script id="soprano-worker-src" type="text/js-worker">
+const ORT_VER='1.20.0';
+try{importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORT_VER+'/dist/ort.min.js')}catch(e){console.error('ORT load fail',e)}
+const HF_BASE='https://huggingface.co/spaces/KevinAHM/soprano-web-onnx/resolve/main';
+const MODELS={backbone:HF_BASE+'/onnx/soprano_backbone_kv_int8.onnx',decoder:HF_BASE+'/onnx/soprano_decoder_int8.onnx'};
+const RECEPTIVE_FIELD=4,TOKEN_SIZE=2048,SAMPLE_RATE=32000;
+let bbSess=null,decSess=null,tokenizer=null,isGen=false,isReady=false;
+
+/* Number to words */
+const ONES=['','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const TENS=['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+function n2w(n){if(n===0)return'zero';const c=n=>{if(n<20)return ONES[n];if(n<100)return TENS[n/10|0]+(n%10?' '+ONES[n%10]:'');if(n<1e3)return ONES[n/100|0]+' hundred'+(n%100?' '+c(n%100):'');if(n<1e6)return c(n/1e3|0)+' thousand'+(n%1e3?' '+c(n%1e3):'');if(n<1e9)return c(n/1e6|0)+' million'+(n%1e6?' '+c(n%1e6):'');return c(n/1e9|0)+' billion'+(n%1e9?' '+c(n%1e9):'')};return c(n)}
+function o2w(n){const w=n2w(n);if(w.endsWith('y'))return w.slice(0,-1)+'ieth';if(w.endsWith('one'))return w.slice(0,-3)+'first';if(w.endsWith('two'))return w.slice(0,-3)+'second';if(w.endsWith('three'))return w.slice(0,-5)+'third';if(w.endsWith('ve'))return w.slice(0,-2)+'fth';if(w.endsWith('e'))return w.slice(0,-1)+'th';return w+'th'}
+
+/* Unicode map */
+const UMAP={'\u00e0':'a','\u00e1':'a','\u00e2':'a','\u00e3':'a','\u00e4':'a','\u00e5':'a','\u00e6':'ae','\u00e7':'c','\u00e8':'e','\u00e9':'e','\u00ea':'e','\u00eb':'e','\u00ec':'i','\u00ed':'i','\u00ee':'i','\u00ef':'i','\u00f1':'n','\u00f2':'o','\u00f3':'o','\u00f4':'o','\u00f5':'o','\u00f6':'o','\u00f8':'o','\u00f9':'u','\u00fa':'u','\u00fb':'u','\u00fc':'u','\u00fd':'y','\u00ff':'y','\u00df':'ss','\u0153':'oe','\u00f0':'d','\u00fe':'th','\u201c':'"','\u201d':'"','\u2018':"'",'\u2019':"'",'\u2026':'...','\u2013':'-','\u2014':'-'};
+function toAscii(t){return t.split('').map(c=>UMAP[c]||c).join('').normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+
+/* Abbreviations */
+const ABBR=[[/\bmrs\./gi,'misuss'],[/\bms\./gi,'miss'],[/\bmr\./gi,'mister'],[/\bdr\./gi,'doctor'],[/\bst\./gi,'saint'],[/\bco\./gi,'company'],[/\bjr\./gi,'junior'],[/\bgen\./gi,'general'],[/\brev\./gi,'reverend'],[/\blt\./gi,'lieutenant'],[/\bcol\./gi,'colonel']];
+const CABBR=[[/\bTTS\b/g,'text to speech'],[/\bHz\b/g,'hertz'],[/\bAPI\b/g,'a p i'],[/\bCPU\b/g,'c p u'],[/\bGPU\b/g,'g p u'],[/\betc\b/g,'etcetera']];
+function expAbbr(t){for(const[r,s]of[...ABBR,...CABBR])t=t.replace(r,s);return t}
+
+function normNums(t){
+  t=t.replace(/#(\d)/g,'number $1');
+  t=t.replace(/(\d[\d,]+\d)/g,m=>m.replace(/,/g,''));
+  t=t.replace(/\$([\d.]+)/g,(_,a)=>{const p=a.split('.');const d=parseInt(p[0])||0;const c=p[1]?parseInt(p[1]):0;if(d&&c)return d+' '+(d===1?'dollar':'dollars')+' '+c+' '+(c===1?'cent':'cents');if(d)return d+' '+(d===1?'dollar':'dollars');return'zero dollars'});
+  t=t.replace(/(\d+)(st|nd|rd|th)/gi,(_,n)=>o2w(parseInt(n)));
+  t=t.replace(/\d+/g,m=>{const n=parseInt(m);if(n>1e3&&n<3e3){if(n%100===0)return n2w(Math.floor(n/100))+' hundred';return n2w(n)}return n2w(n)});
+  return t;
+}
+
+function cleanText(t){
+  t=toAscii(t);
+  t=t.split('\n').map(l=>{l=l.trim();if(!l)return'';if(!/[.!?]$/.test(l))l+='.';return l}).join(' ');
+  t=normNums(t);t=expAbbr(t);
+  t=t.replace(/@/g,' at ').replace(/&/g,' and ').replace(/%/g,' percent ');
+  t=t.toLowerCase();
+  t=t.replace(/[^a-z !\$%&'\*\+,\-./0-9<>\?_]/g,'');
+  t=t.replace(/[<>\/_+]/g,'');
+  t=t.replace(/\s+/g,' ').replace(/ ([.\?!,])/g,'$1');
+  t=t.replace(/\.\.\.+/g,'...').replace(/,+/g,',');
+  return t.trim();
+}
+
+function preprocessText(text){
+  const ct=cleanText(text.trim());
+  let sents=ct.split(/(?<=[.!?])\s+/).filter(s=>s.trim());
+  if(!sents.length)return ct?['[STOP][TEXT]'+ct+'[START]']:[];
+  if(sents.length>1){const mg=[];for(let i=0;i<sents.length;i++){const c=sents[i];if(c.length<30){if(mg.length>0)mg[mg.length-1]+=' '+c;else if(i+1<sents.length)sents[i+1]=c+' '+sents[i+1];else mg.push(c)}else mg.push(c)}sents=mg}
+  const ps=[];for(let i=0;i<sents.length;i+=3)ps.push('[STOP][TEXT]'+sents.slice(i,i+3).join(' ')+'[START]');
+  return ps;
+}
+
+/* Sampling */
+const SP={temperature:.3,topK:50,topP:.95,repetitionPenalty:1.2};
+function sample(logitsTensor,seenMask){
+  const raw=logitsTensor.data,vs=logitsTensor.dims[2],off=(logitsTensor.dims[1]-1)*vs;
+  const data=raw.subarray?raw.subarray(off):raw.slice(off);
+  const{temperature,topK:tk,topP:tp,repetitionPenalty:rp}=SP;
+  const invT=1/temperature,k=Math.min(tk,vs);
+  const idx=new Int32Array(k),sc=new Float32Array(k);let sz=0;
+  for(let t=0;t<vs;t++){
+    let s=data[t]*invT;if(rp!==1&&seenMask[t])s=s<0?s*rp:s/rp;
+    if(sz<k){let p=sz++;while(p>0){const pr=(p-1)>>1;if(sc[pr]<=s)break;sc[p]=sc[pr];idx[p]=idx[pr];p=pr}sc[p]=s;idx[p]=t}
+    else if(s>sc[0]){let p=0;while(p<(k>>1)){let l=(p<<1)+1,r=l+1,sm=l;if(r<k&&sc[r]<sc[l])sm=r;if(sc[sm]>=s)break;sc[p]=sc[sm];idx[p]=idx[sm];p=sm}sc[p]=s;idx[p]=t}
+  }
+  const od=Array.from({length:k},(_,i)=>i);od.sort((a,b)=>sc[b]-sc[a]);
+  const mx=sc[od[0]];let se=0;const eb=new Float64Array(k);
+  for(let i=0;i<k;i++){eb[i]=Math.exp(sc[od[i]]-mx);se+=eb[i]}
+  let kp=k;if(tp<1){const th=tp*se;let cm=0;for(let i=0;i<k;i++){cm+=eb[i];if(cm>=th){kp=i+1;break}}}
+  let sm2=0;for(let i=0;i<kp;i++)sm2+=eb[i];
+  let r=Math.random()*sm2;for(let i=0;i<kp;i++){r-=eb[i];if(r<=0)return BigInt(idx[od[i]])}
+  return BigInt(idx[od[0]]);
+}
+
+/* Message handler */
+self.onmessage=async e=>{
+  const{type,data}=e.data;
+  if(type==='load'){try{await loadModels();postMessage({type:'loaded'})}catch(err){postMessage({type:'error',error:err.toString()})}}
+  else if(type==='generate'){if(!isReady){postMessage({type:'error',error:'Models not loaded'});return}if(isGen)return;try{await startGen(data.text)}catch(err){postMessage({type:'error',error:err.toString()})}}
+  else if(type==='stop'){isGen=false}
+};
+
+async function loadModels(){
+  if(bbSess)return;
+  postMessage({type:'status',text:'Loading ONNX Runtime…'});
+  ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORT_VER+'/dist/';
+  if(!self.crossOriginIsolated)ort.env.wasm.numThreads=1;
+  else if(navigator?.hardwareConcurrency)ort.env.wasm.numThreads=Math.min(navigator.hardwareConcurrency,8);
+  const opts={executionProviders:['wasm'],freeDimensionOverrides:{batch:1},graphOptimizationLevel:'all'};
+
+  postMessage({type:'status',text:'Downloading backbone (~81MB)…'});
+  postMessage({type:'progress',value:5});
+  bbSess=await ort.InferenceSession.create(MODELS.backbone,opts);
+  postMessage({type:'progress',value:45});
+
+  postMessage({type:'status',text:'Downloading decoder (~31MB)…'});
+  const decBuf=await fetch(MODELS.decoder).then(r=>r.arrayBuffer());
+  let dataBuf=null;
+  try{const dr=await fetch(MODELS.decoder+'.data');if(dr.ok)dataBuf=await dr.arrayBuffer()}catch(e){}
+  const decOpts={executionProviders:['wasm'],freeDimensionOverrides:{batch:1}};
+  if(dataBuf)decOpts.externalData=[{data:new Uint8Array(dataBuf),path:MODELS.decoder.split('/').pop()+'.data'}];
+  decSess=await ort.InferenceSession.create(new Uint8Array(decBuf),decOpts);
+  postMessage({type:'progress',value:75});
+
+  postMessage({type:'status',text:'Loading tokenizer…'});
+  const tf=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
+  tf.env.allowLocalModels=false;tf.env.allowRemoteModels=true;
+  tokenizer=await tf.AutoTokenizer.from_pretrained('KevinAHM/soprano-1.1-onnx');
+  postMessage({type:'progress',value:100});
+  isReady=true;
+  postMessage({type:'status',text:'Ready'});
+}
+
+async function startGen(text){
+  isGen=true;
+  postMessage({type:'gen_start'});
+  const prompts=preprocessText(text);
+  for(const prompt of prompts){
+    if(!isGen)break;
+    const{input_ids}=await tokenizer(prompt);
+    await genLoop(input_ids.data);
+  }
+  postMessage({type:'gen_end'});
+  isGen=false;
+}
+
+async function genLoop(promptTokens){
+  const batch=1,nLayers=17,hDim=128,pLen=promptTokens.length,vocabSize=8192,maxNew=512,tgt=8;
+  const seenMask=new Uint8Array(vocabSize);
+  for(let i=0;i<pLen;i++){const t=Number(promptTokens[i]);if(t>=0&&t<vocabSize)seenMask[t]=1}
+
+  let pkv={};
+  for(let i=0;i<nLayers;i++){
+    pkv['past_key_values.'+i+'.key']=new ort.Tensor('float32',new Float32Array(0),[batch,1,0,hDim]);
+    pkv['past_key_values.'+i+'.value']=new ort.Tensor('float32',new Float32Array(0),[batch,1,0,hDim]);
+  }
+  const maxSL=pLen+maxNew,amData=new BigInt64Array(maxSL);amData.fill(1n);let curSL=pLen;
+  const nidD=new BigInt64Array(1),npidD=new BigInt64Array(1);
+  const nidT=new ort.Tensor('int64',nidD,[batch,1]),npidT=new ort.Tensor('int64',npidD,[batch,1]);
+  let cIds=new ort.Tensor('int64',BigInt64Array.from(promptTokens),[batch,pLen]);
+  let cAM=new ort.Tensor('int64',amData.subarray(0,curSL),[batch,curSL]);
+  let cPids=new ort.Tensor('int64',BigInt64Array.from({length:pLen},(_,i)=>BigInt(i)),[batch,pLen]);
+
+  const hBuf=[];let chunkCtr=tgt;
+  let lastDecP=Promise.resolve();
+
+  for(let i=0;i<maxNew;i++){
+    if(!isGen)break;
+    if(i%4===0)await new Promise(r=>setTimeout(r,0));
+    const inputs={input_ids:cIds,attention_mask:cAM,position_ids:cPids,...pkv};
+    const out=await bbSess.run(inputs);
+    const bn=bbSess.outputNames;
+    const logits=out[bn[0]],lhs=out[bn[bn.length-1]];
+    for(let j=0;j<nLayers;j++){pkv['past_key_values.'+j+'.key']=out[bn[1+j*2]];pkv['past_key_values.'+j+'.value']=out[bn[2+j*2]]}
+    const nTok=sample(logits,seenMask);const fin=(nTok===3n);const ntn=Number(nTok);
+    if(ntn>=0&&ntn<vocabSize)seenMask[ntn]=1;
+    const sl=lhs.dims[1],hd=lhs.dims[2];
+    const lts=new Float32Array(lhs.data.subarray((sl-1)*hd,sl*hd));
+    if(i>0&&!fin){hBuf.push(lts);if(hBuf.length>2*RECEPTIVE_FIELD+tgt)hBuf.splice(0,hBuf.length-(2*RECEPTIVE_FIELD+tgt))}
+    if(fin||hBuf.length>=RECEPTIVE_FIELD+tgt){
+      if(fin||chunkCtr===tgt){
+        const win=[...hBuf.slice(-hBuf.length)],ws=win.length;
+        const di=new Float32Array(512*ws);for(let w=0;w<ws;w++)for(let d=0;d<512;d++)di[d*ws+w]=win[w][d];
+        const isLast=fin,capCC=chunkCtr;
+        lastDecP=lastDecP.then(async()=>{
+          const dOut=await decSess.run({[decSess.inputNames[0]]:new ort.Tensor('float32',di,[1,512,ws])});
+          const audio=dOut[decSess.outputNames[0]].data;
+          let ac;
+          if(isLast){const si=audio.length-(RECEPTIVE_FIELD+capCC-1)*TOKEN_SIZE+TOKEN_SIZE;ac=audio.subarray(Math.max(0,si))}
+          else{const si=audio.length-(RECEPTIVE_FIELD+tgt)*TOKEN_SIZE+TOKEN_SIZE;const ei=audio.length-RECEPTIVE_FIELD*TOKEN_SIZE+TOKEN_SIZE;ac=audio.subarray(Math.max(0,si),ei)}
+          if(ac.length>0)postMessage({type:'audio_chunk',data:ac},[ac.buffer]);
+        });
+        chunkCtr=0;
+      }
+      chunkCtr++;
+    }
+    if(fin)break;
+    nidD[0]=nTok;cIds=nidT;curSL++;
+    cAM=new ort.Tensor('int64',amData.subarray(0,curSL),[1,curSL]);
+    npidD[0]=BigInt(curSL-1);cPids=npidT;
+  }
+  await lastDecP;
+}
+</script>
+
+<script type="module">
+import{pipeline}from'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/+esm';
+
+// ═══════════════════════════════════════
+// LLM MODELS — Llama 3.2 1B as default (SmolLM2-360M is too dumb)
+// ═══════════════════════════════════════
+const GPU_M=[
+  {id:'Llama-3.2-1B-Instruct-q4f16_1-MLC',n:'Llama 3.2 1B',sz:'~700MB',def:1},
+  {id:'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',n:'Qwen2.5 0.5B',sz:'~350MB'},
+  {id:'SmolLM2-1.7B-Instruct-q4f16_1-MLC',n:'SmolLM2 1.7B',sz:'~900MB'},
+  {id:'SmolLM2-360M-Instruct-q4f16_1-MLC',n:'SmolLM2 360M (tiny)',sz:'~250MB'},
+];
+const CPU_M=[
+  {id:'qwen3-06b',n:'Qwen3 0.6B Q4_K_M',sz:'~397MB',def:1,
+    u:'https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf'},
+  {id:'smollm2-360',n:'SmolLM2 360M Q8',sz:'~386MB',
+    u:'https://huggingface.co/lmstudio-community/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q8_0.gguf'},
+  {id:'smollm3-3b',n:'SmolLM3 3B Q4_K_M',sz:'~1.92GB',
+    u:'https://huggingface.co/unsloth/SmolLM3-3B-128K-GGUF/resolve/main/SmolLM3-3B-128K-Q4_K_M.gguf'},
+];
+
+const $=s=>document.getElementById(s);
+const el={bB:$('bB'),bS:$('bS'),tps:$('tps'),gpuI:$('gpuI'),thrI:$('thrI'),
+  rG:$('rG'),rC:$('rC'),rA:$('rA'),apiRow:$('apiRow'),apiUrl:$('apiUrl'),modelRow:$('modelRow'),
+  mI:$('mI'),mB:$('mB'),cv:$('cv'),tSl:$('tSl'),tVl:$('tVl'),kSl:$('kSl'),kVl:$('kVl'),
+  bL:$('bL'),bU:$('bU'),bCl:$('bCl'),actBtn:$('actBtn'),micB:$('micB'),
+  pW:$('pW'),pB:$('pB'),ms:$('ms'),pr:$('pr'),
+  setOv:$('setOv'),gearBtn:$('gearBtn'),setX:$('setX'),
+  pkO:$('pkO'),pkL:$('pkL'),pkX:$('pkX'),
+  vadDot:$('vadDot'),vadLabel:$('vadLabel'),
+  pbASR:$('pbASR'),pbTTS:$('pbTTS'),pbEMO:$('pbEMO'),
+  ttsSop:$('ttsSop'),ttsBr:$('ttsBr')};
+
+const MAX_DOM=40;
+
+let S={
+  backend:'gpu',engine:null,wlib:null,clib:null,
+  loaded:false,busy:false,aborted:false,gpuOk:false,tokC:0,genStart:0,
+  l2dModel:null,pixiApp:null,baseScale:0.12,
+  exprTarget:{mouthForm:0,browLY:0,browRY:0,mouthOpen:0,eyeLOpen:1,eyeROpen:1},
+  exprCurrent:{mouthForm:0,browLY:0,browRY:0,mouthOpen:0,eyeLOpen:1,eyeROpen:1},
+  exprDecayTimer:null,
+  // Voice
+  listening:false,speaking:false,processing:false,
+  chunks:[],audioBuffer:[],isSpeechActive:false,silenceFrames:0,speechChunkCount:0,
+  audioCtx:null,mediaRecorder:null,micStream:null,
+  bargeInCooldown:false,
+  // TTS
+  ttsMode:'soprano', // 'soprano' or 'browser'
+  sopranoWorker:null,sopranoReady:false,sopranoLoading:false,
+  ttsAudioCtx:null,ttsScheduleTime:0,ttsAnalyser:null,ttsGain:null,
+  currentMouthAmp:0, // real-time lip sync amplitude
+  // Pipelines
+  asrPipe:null,emoPipe:null,asrReady:false,emoReady:false,
+  // Chat
+  chat:[{role:'system',content:'You are a helpful assistant. Answer questions directly and concisely. Never repeat previous answers.'}],
+  blobUrls:new Set(),
+};
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function stat(t){el.bS.textContent=t}
+function setBB(b){el.bB.className='badge '+(b==='gpu'?'b-gpu':b==='cpu'?'b-cpu':b==='api'?'b-api':'b-off');el.bB.textContent=b==='gpu'?'⚡GPU':b==='cpu'?'🔧CPU':b==='api'?'🌐API':'—'}
+function prog(p){el.pW.classList.add('on');el.pB.style.width=Math.min(100,Math.max(0,p))+'%'}
+function noprog(){el.pW.classList.remove('on');el.pB.style.width='0%'}
+function addM(r,t){while(el.ms.children.length>=MAX_DOM)el.ms.removeChild(el.ms.firstChild);const d=document.createElement('div');d.className='b '+(r==='user'?'u':r==='ai'?'a':'s');d.textContent=t;el.ms.appendChild(d);el.ms.scrollTop=el.ms.scrollHeight;return d}
+function scr(){el.ms.scrollTop=el.ms.scrollHeight}
+function startTPS(){S.tokC=0;S.genStart=performance.now();el.tps.classList.add('on');el.tps.textContent='…'}
+function tickTPS(){S.tokC++;const e=(performance.now()-S.genStart)/1000;if(e>.3)el.tps.textContent=(S.tokC/e).toFixed(1)+' t/s'}
+function stopTPS(){const e=(performance.now()-S.genStart)/1000;if(e>0&&S.tokC>0)el.tps.textContent=(S.tokC/e).toFixed(1)+' t/s';setTimeout(()=>el.tps.classList.remove('on'),10000)}
+function chatML(m){let p='';for(const x of m)p+=`<|im_start|>${x.role}\n${x.content}<|im_end|>\n`;return p+'<|im_start|>assistant\n'}
+function clean(t){return t.replace(/<\|im_end\|>/g,'').replace(/<\|im_start\|>[^\n]*/g,'').replace(/<\|endoftext\|>/g,'').replace(/\/no_think/g,'').replace(/\/think/g,'').trim()}
+function parseCustom(v){v=v.trim();if(v.startsWith('http'))return{url:v};const m=v.match(/^([^:]+):(.+)$/);if(m)return{url:`https://huggingface.co/${m[1]}/resolve/main/${m[2]}`};return null}
+function setActionBtn(mode){el.actBtn.className='action-btn '+(mode==='stop'?'stop-mode':'send-mode');el.actBtn.textContent=mode==='stop'?'■':'▶'}
+function trackBlob(u){S.blobUrls.add(u);return u}
+function revokeBlob(u){if(u){try{URL.revokeObjectURL(u)}catch(e){}S.blobUrls.delete(u)}}
+function isWhisperNoise(text){const t=text.trim();if(!t||t.length<3)return true;if(/^\[.*\]$/.test(t)||/^\(.*\)$/.test(t))return true;if(/^(\[.*?\]\s*){2,}$/.test(t)||/^(\(.*?\)\s*){2,}$/.test(t))return true;const n=['blank_audio','typing','music','silence','noise','applause','laughter','clapping','gunshot','footsteps','coughing','breathing','static'];const l=t.toLowerCase().replace(/[\[\]\(\)]/g,'').trim();if(n.includes(l))return true;if(/^(you\.?|thank you\.?|thanks\.?|bye\.?|okay\.?|oh\.?|no\.?|yes\.?|hey\.?|hi\.?)$/i.test(t))return true;return false}
+
+// ═══════════════════════════════════════
+// GPU DETECT
+// ═══════════════════════════════════════
+async function detectGPU(){if(!navigator.gpu)return{ok:false,why:'No WebGPU'};try{const a=await navigator.gpu.requestAdapter();if(!a)return{ok:false,why:'No adapter'};let nm='GPU';try{const i=await a.requestAdapterInfo?.();nm=i?.description||i?.device||nm}catch(e){}return{ok:true,name:nm}}catch(e){return{ok:false,why:e.message}}}
+
+// ═══════════════════════════════════════
+// LLM BACKENDS
+// ═══════════════════════════════════════
+async function loadGPU(mid){stat('Loading WebLLM…');if(!S.wlib)S.wlib=await import('https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.80/lib/index.min.js');stat('Downloading…');const chatOpts={repetition_penalty:1.15};S.engine=await S.wlib.CreateMLCEngine(mid,{initProgressCallback:p=>{const pc=p.progress?Math.round(p.progress*100):0;prog(pc);stat(p.text||`Loading… ${pc}%`)}},chatOpts)}
+async function chatGPU(m,temp,maxT,onTok){const r=await S.engine.chat.completions.create({messages:m,stream:true,temperature:temp,max_tokens:maxT,frequency_penalty:0.5,presence_penalty:0.3});let t='';for await(const c of r){if(S.aborted)break;const d=c.choices?.[0]?.delta?.content||'';if(d){t+=d;tickTPS();onTok(t)}}return t}
+async function offGPU(){try{await S.engine?.unload?.()}catch(e){}S.engine=null}
+async function loadCPU(url){stat('Loading Wllama…');if(!S.clib)S.clib=await import('https://github.ngxson.com/wllama/esm/index.js');const{Wllama}=S.clib,base='https://github.ngxson.com/wllama/esm';S.engine=new Wllama({'single-thread/wllama.wasm':`${base}/single-thread/wllama.wasm`,'multi-thread/wllama.wasm':`${base}/multi-thread/wllama.wasm`,'multi-thread/wllama.worker.mjs':`${base}/multi-thread/wllama.worker.mjs`});stat('Downloading…');await S.engine.loadModelFromUrl(url,{n_ctx:2048,n_batch:512,progressCallback:({loaded,total})=>{const p=total?Math.round(loaded/total*100):0;prog(p);stat(`Downloading… ${p}%`)}})}
+async function chatCPU(m,temp,maxT,onTok){const prompt=chatML(m);let res='';await S.engine.createCompletion(prompt,{nPredict:maxT,sampling:{temp,top_k:40,top_p:0.9},onNewToken:(tok,piece,cur)=>{if(S.aborted)return;res=clean(cur);tickTPS();onTok(res)}});return res}
+async function offCPU(){try{await S.engine?.exit?.()}catch(e){}S.engine=null}
+async function chatAPI(msgs,temp,maxT,onTok){const url=el.apiUrl.value.trim();const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'default',messages:msgs,max_tokens:maxT,temperature:temp,stream:false})});if(!res.ok)throw new Error(`API ${res.status}`);const data=await res.json();const text=data?.choices?.[0]?.message?.content||'';S.tokC=text.split(/\s+/).length;onTok(text);return text}
+
+// ═══════════════════════════════════════
+// ASR + EMOTION
+// ═══════════════════════════════════════
+async function loadASR(){if(S.asrReady)return;el.pbASR.classList.add('ld');el.pbASR.textContent='ASR…';const msg=addM('s','🎙 Loading Whisper…');try{S.asrPipe=await pipeline('automatic-speech-recognition','Xenova/whisper-tiny.en');S.asrReady=true;el.pbASR.classList.remove('ld');el.pbASR.classList.add('ok');el.pbASR.textContent='ASR ✓';msg.textContent='✓ Whisper ready'}catch(e){el.pbASR.classList.remove('ld');el.pbASR.textContent='ASR ✗';msg.textContent='✗ ASR: '+e.message}}
+async function loadEmotion(){if(S.emoReady)return;el.pbEMO.classList.add('ld');el.pbEMO.textContent='EMO…';try{S.emoPipe=await pipeline('text-classification','Cohee/distilbert-base-uncased-go-emotions-onnx',{quantized:true});S.emoReady=true;el.pbEMO.classList.remove('ld');el.pbEMO.classList.add('ok');el.pbEMO.textContent='EMO ✓'}catch(e){el.pbEMO.classList.remove('ld');el.pbEMO.textContent='EMO ✗'}}
+
+const EMOTION_MAP={joy:'Happy',amusement:'Happy',excitement:'Happy',love:'Happy',admiration:'Happy',pride:'Happy',gratitude:'Happy',optimism:'Happy',sadness:'Sad',grief:'Sad',disappointment:'Sad',remorse:'Sad',embarrassment:'Sad',nervousness:'Sad',anger:'Angry',annoyance:'Angry',disgust:'Angry',disapproval:'Angry',surprise:'Surprise',fear:'Surprise',realization:'Surprise',confusion:'Surprise',curiosity:'Surprise'};
+
+async function classifyEmotion(text){
+  if(!S.emoReady){const t=text.toLowerCase();if(/\b(haha|lol|great|awesome|happy|love|nice|amazing)\b/.test(t))return{label:'joy',motion:'Happy',score:0.8};if(/\b(sorry|sad|miss|cry|bad)\b/.test(t))return{label:'sadness',motion:'Sad',score:0.8};if(/\b(hate|angry|terrible|awful)\b/.test(t))return{label:'anger',motion:'Angry',score:0.8};if(/\b(wow|whoa|surprise)\b/.test(t))return{label:'surprise',motion:'Surprise',score:0.8};return{label:'neutral',motion:null,score:0.5}}
+  try{const lastU=S.chat.filter(m=>m.role==='user').slice(-1)[0];const ctx=lastU?`User: ${lastU.content.slice(0,80)}. Reply: ${text.slice(0,220)}`:text.slice(0,300);const r=await S.emoPipe(ctx);const top=r[0];console.log('[Emotion]',top.label,'('+top.score.toFixed(3)+')');return{label:top.label,motion:EMOTION_MAP[top.label]||null,score:top.score}}catch(e){return{label:'neutral',motion:null,score:0}}
+}
+
+// ═══════════════════════════════════════
+// EXPRESSION SYSTEM — direct parameter animation
+// ═══════════════════════════════════════
+const EXPRESSIONS={
+  Happy:{mouthForm:1,browLY:.4,browRY:.4,mouthOpen:0,eyeLOpen:.8,eyeROpen:.8},
+  Sad:{mouthForm:-.7,browLY:-.6,browRY:-.6,mouthOpen:0,eyeLOpen:.7,eyeROpen:.7},
+  Angry:{mouthForm:-.4,browLY:-.9,browRY:-.9,mouthOpen:.15,eyeLOpen:.7,eyeROpen:.7},
+  Surprise:{mouthForm:.1,browLY:.9,browRY:.9,mouthOpen:.5,eyeLOpen:1.2,eyeROpen:1.2},
+  Neutral:{mouthForm:0,browLY:0,browRY:0,mouthOpen:0,eyeLOpen:1,eyeROpen:1},
+};
+function setExpression(name){S.exprTarget={...(EXPRESSIONS[name]||EXPRESSIONS.Neutral)};if(S.exprDecayTimer)clearTimeout(S.exprDecayTimer);if(name!=='Neutral')S.exprDecayTimer=setTimeout(()=>{S.exprTarget={...EXPRESSIONS.Neutral}},4000)}
+function lerpExpressions(){for(const k of Object.keys(S.exprCurrent)){const d=S.exprTarget[k]-S.exprCurrent[k];S.exprCurrent[k]+=Math.abs(d)>0.001?d*0.08:0}}
+function applyExprToModel(cm){
+  try{cm.setParameterValueById('ParamMouthForm',S.exprCurrent.mouthForm)}catch(e){}
+  try{cm.setParameterValueById('ParamBrowLY',S.exprCurrent.browLY)}catch(e){}
+  try{cm.setParameterValueById('ParamBrowRY',S.exprCurrent.browRY)}catch(e){}
+  try{cm.setParameterValueById('ParamEyeLOpen',S.exprCurrent.eyeLOpen)}catch(e){}
+  try{cm.setParameterValueById('ParamEyeROpen',S.exprCurrent.eyeROpen)}catch(e){}
+  // Lip sync: use real-time audio amplitude when speaking, expression mouthOpen otherwise
+  if(S.speaking&&S.currentMouthAmp>0.01){
+    try{cm.setParameterValueById('ParamMouthOpenY',S.currentMouthAmp)}catch(e){}
+  }else if(!S.speaking){
+    try{cm.setParameterValueById('ParamMouthOpenY',S.exprCurrent.mouthOpen)}catch(e){}
+  }
+}
+
+async function initAvatar(){
+  if(S.pixiApp)return;
+  try{
+    S.pixiApp=new PIXI.Application({view:el.cv,resizeTo:window,transparent:true});
+    S.l2dModel=await PIXI.live2d.Live2DModel.from('https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display/test/assets/haru/haru_greeter_t03.model3.json');
+    S.pixiApp.stage.addChild(S.l2dModel);
+    S.baseScale=0.12;S.l2dModel.anchor.set(0.5,1.0);S.l2dModel.scale.set(S.baseScale);
+    S.l2dModel.position.set(S.pixiApp.screen.width/2,S.pixiApp.screen.height*0.9);
+    let t=0;
+    S.pixiApp.ticker.add(()=>{
+      t+=0.01;const cm=S.l2dModel.internalModel?.coreModel;if(!cm)return;
+      try{cm.setParameterValueById('ParamBreath',Math.sin(t*1.2)*.5+.5)}catch(e){}
+      if(!S.speaking){try{const cx=cm.getParameterValueById('ParamEyeBallX');const cy=cm.getParameterValueById('ParamEyeBallY');cm.setParameterValueById('ParamEyeBallX',cx+(Math.sin(t*.3)*.5-cx)*.1);cm.setParameterValueById('ParamEyeBallY',cy+(Math.sin(t*.4)*.3-cy)*.1)}catch(e){}}
+      try{cm.setParameterValueById('ParamAngleX',Math.cos(t*.25)*2);cm.setParameterValueById('ParamAngleY',Math.sin(t*.5)*2);cm.setParameterValueById('ParamAngleZ',Math.cos(t*.8)*1.5);cm.setParameterValueById('ParamBodyAngleX',Math.sin(t*.2)*1.5)}catch(e){}
+      // Read lip sync amplitude from TTS analyser
+      if(S.speaking&&S.ttsAnalyser){
+        const buf=new Uint8Array(S.ttsAnalyser.fftSize);S.ttsAnalyser.getByteTimeDomainData(buf);
+        let sum=0;for(let i=0;i<buf.length;i++){const v=(buf[i]-128)/128;sum+=v*v}
+        const rms=Math.sqrt(sum/buf.length);
+        S.currentMouthAmp+=(Math.min(rms*4,1)-S.currentMouthAmp)*0.3; // smooth
+      }else{S.currentMouthAmp*=0.85} // decay when not speaking
+      lerpExpressions();applyExprToModel(cm);
+    });
+    window.addEventListener('resize',()=>{S.l2dModel.position.set(S.pixiApp.screen.width/2,S.pixiApp.screen.height*0.9)});
+  }catch(e){console.warn('Avatar:',e)}
+}
+
+// ═══════════════════════════════════════
+// SOPRANO TTS — Web Worker + streaming audio
+// ═══════════════════════════════════════
+const SOPRANO_SR=32000;
+
+function initTTSAudioCtx(){
+  if(S.ttsAudioCtx)return;
+  S.ttsAudioCtx=new AudioContext({sampleRate:SOPRANO_SR,latencyHint:'interactive'});
+  S.ttsGain=S.ttsAudioCtx.createGain();S.ttsGain.connect(S.ttsAudioCtx.destination);
+  S.ttsAnalyser=S.ttsAudioCtx.createAnalyser();S.ttsAnalyser.fftSize=512;
+  S.ttsGain.connect(S.ttsAnalyser);
+  S.ttsScheduleTime=0;
+}
+
+function playAudioChunk(f32){
+  if(!S.ttsAudioCtx||S.ttsAudioCtx.state!=='running')return;
+  const buf=S.ttsAudioCtx.createBuffer(1,f32.length,SOPRANO_SR);
+  buf.copyToChannel(f32,0);
+  const src=S.ttsAudioCtx.createBufferSource();src.buffer=buf;
+  src.connect(S.ttsGain);
+  const now=S.ttsAudioCtx.currentTime;
+  if(S.ttsScheduleTime<now)S.ttsScheduleTime=now;
+  src.start(S.ttsScheduleTime);
+  S.ttsScheduleTime+=buf.duration;
+  src.onended=()=>{src.disconnect()};
+}
+
+function resetTTSPlayer(){
+  if(!S.ttsAudioCtx)return;
+  // Fade out current gain and create new chain
+  const old=S.ttsGain;
+  S.ttsGain=S.ttsAudioCtx.createGain();S.ttsGain.connect(S.ttsAudioCtx.destination);
+  S.ttsAnalyser=S.ttsAudioCtx.createAnalyser();S.ttsAnalyser.fftSize=512;
+  S.ttsGain.connect(S.ttsAnalyser);
+  if(old){const n=S.ttsAudioCtx.currentTime;old.gain.setValueAtTime(old.gain.value,n);old.gain.linearRampToValueAtTime(0,n+0.05);setTimeout(()=>{try{old.disconnect()}catch(e){}},120)}
+  S.ttsScheduleTime=0;
+}
+
+async function initSopranoWorker(){
+  if(S.sopranoWorker)return;
+  S.sopranoLoading=true;
+  el.pbTTS.classList.add('ld');el.pbTTS.textContent='TTS…';
+  addM('s','🎧 Loading Soprano TTS (~112MB)…');
+
+  const code=document.getElementById('soprano-worker-src').textContent;
+  const blob=new Blob([code],{type:'application/javascript'});
+  const url=URL.createObjectURL(blob);
+  S.sopranoWorker=new Worker(url);
+  URL.revokeObjectURL(url);
+
+  return new Promise((resolve,reject)=>{
+    S.sopranoWorker.onmessage=e=>{
+      const{type,data,error,text,value}=e.data;
+      switch(type){
+        case'status':addM('s','🎧 '+text);break;
+        case'progress':prog(value);break;
+        case'loaded':
+          S.sopranoReady=true;S.sopranoLoading=false;
+          el.pbTTS.classList.remove('ld');el.pbTTS.classList.add('ok');el.pbTTS.textContent='TTS ✓';
+          noprog();addM('s','✓ Soprano TTS ready');resolve();break;
+        case'error':
+          S.sopranoLoading=false;
+          el.pbTTS.classList.remove('ld');el.pbTTS.textContent='TTS ✗';
+          addM('s','✗ Soprano: '+error);noprog();reject(new Error(error));break;
+        case'audio_chunk':
+          if(S.speaking){
+            const f32=data instanceof Float32Array?data:new Float32Array(data);
+            playAudioChunk(f32);
+          }break;
+        case'gen_start':break;
+        case'gen_end':
+          // Schedule end of speaking after all buffered audio plays
+          if(S.speaking){
+            const remaining=Math.max(0,(S.ttsScheduleTime||0)-S.ttsAudioCtx.currentTime);
+            setTimeout(()=>{S.speaking=false;S.currentMouthAmp=0;stat('Ready')},remaining*1000+200);
+          }break;
+      }
+    };
+    S.sopranoWorker.postMessage({type:'load'});
+  });
+}
+
+function speakWithSoprano(text){
+  return new Promise(async resolve=>{
+    if(!text||S.aborted){resolve();return}
+    if(!S.sopranoReady){
+      // Fallback to browser TTS if Soprano not loaded
+      await browserTTS(text);resolve();return;
+    }
+    initTTSAudioCtx();
+    if(S.ttsAudioCtx.state==='suspended')await S.ttsAudioCtx.resume();
+    resetTTSPlayer();
+    S.speaking=true;stat('Speaking…');
+
+    // Override the gen_end handler for this specific call
+    const origHandler=S.sopranoWorker.onmessage;
+    S.sopranoWorker.onmessage=e=>{
+      const{type,data,error,text:statusText,value}=e.data;
+      switch(type){
+        case'audio_chunk':
+          if(S.speaking&&!S.aborted){
+            const f32=data instanceof Float32Array?data:new Float32Array(data);
+            playAudioChunk(f32);
+          }break;
+        case'gen_end':
+          // Wait for scheduled audio to finish playing
+          const remaining=Math.max(0,(S.ttsScheduleTime||0)-(S.ttsAudioCtx?.currentTime||0));
+          setTimeout(()=>{
+            S.speaking=false;S.currentMouthAmp=0;stat('Ready');
+            S.sopranoWorker.onmessage=origHandler;
+            resolve();
+          },remaining*1000+300);
+          break;
+        case'status':case'progress':case'error':
+          origHandler(e);break;
+      }
+    };
+    S.sopranoWorker.postMessage({type:'generate',data:{text}});
+  });
+}
+
+function stopSpeaking(){
+  if(!S.speaking)return;
+  console.log('[Speech] Force stop');
+  if(S.sopranoWorker)S.sopranoWorker.postMessage({type:'stop'});
+  resetTTSPlayer();
+  window.speechSynthesis?.cancel();
+  S.speaking=false;S.currentMouthAmp=0;stat('Ready');
+}
+
+function browserTTS(text){
+  return new Promise(resolve=>{
+    const synth=window.speechSynthesis;if(!synth){resolve();return}
+    synth.cancel();S.speaking=true;stat('Speaking…');
+    const utt=new SpeechSynthesisUtterance(text);utt.rate=1;utt.pitch=1.1;
+    const voices=synth.getVoices();
+    const fem=voices.find(v=>/female|zira|samantha|karen|victoria|fiona/i.test(v.name));
+    if(fem)utt.voice=fem;
+    // Fake lip sync for browser TTS
+    let lipInt=null,lipT=0;
+    utt.onstart=()=>{lipInt=setInterval(()=>{lipT+=.3;S.currentMouthAmp=Math.abs(Math.sin(lipT*2.5))*.6+Math.abs(Math.sin(lipT*4.1))*.3},50)};
+    const cleanup=()=>{if(lipInt){clearInterval(lipInt);lipInt=null}S.currentMouthAmp=0;S.speaking=false;stat('Ready');resolve()};
+    utt.onend=cleanup;utt.onerror=cleanup;
+    synth.speak(utt);
+    setTimeout(()=>{if(S.speaking){synth.cancel();cleanup()}},Math.max(3000,(text.length/15)*1000+2000));
+  });
+}
+
+// ═══════════════════════════════════════
+// VAD + WHISPER — FIXED barge-in logic
+// ═══════════════════════════════════════
+const VAD_NORMAL=0.015;
+const VAD_SPEAKING=0.06; // much higher to reject TTS echo
+const SILENCE_NEEDED=3;
+const BARGEIN_MIN_CHUNKS=2; // require 2 consecutive voice chunks (1s) before barge-in
+const BARGEIN_COOLDOWN_MS=3000;
+const MIN_SPEECH_S=0.4;
+const MAX_SPEECH_S=15;
+
+async function setupMic(){
+  try{S.micStream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    S.audioCtx=new AudioContext({sampleRate:16000});
+    S.mediaRecorder=new MediaRecorder(S.micStream,{mimeType:'audio/webm'});
+    S.mediaRecorder.ondataavailable=e=>S.chunks.push(e.data);
+    S.mediaRecorder.onstop=()=>handleChunk();
+    console.log('[Mic] Ready');return true;
+  }catch(e){console.error('[Mic]',e);addM('s','⚠ Mic denied');return false}
+}
+
+function startListening(){if(S.listening)return;S.listening=true;el.micB.classList.add('listening');el.vadLabel.textContent='Listening';rotateRecord()}
+function stopListeningFull(){S.listening=false;el.micB.classList.remove('listening');el.vadLabel.textContent='';el.vadDot.classList.remove('on');if(S.mediaRecorder?.state==='recording')try{S.mediaRecorder.stop()}catch(e){}S.audioBuffer=[];S.isSpeechActive=false;S.silenceFrames=0;S.speechChunkCount=0}
+
+function rotateRecord(){
+  if(!S.listening||S.processing)return;
+  if(S.mediaRecorder?.state!=='inactive'){setTimeout(()=>rotateRecord(),300);return}
+  S.chunks=[];
+  try{S.mediaRecorder.start();setTimeout(()=>{if(S.mediaRecorder?.state==='recording')S.mediaRecorder.stop()},500)}catch(e){setTimeout(()=>rotateRecord(),500)}
+}
+
+async function handleChunk(){
+  const blob=new Blob(S.chunks,{type:'audio/webm'});S.chunks=[];
+  if(blob.size<500){if(S.listening&&!S.processing)rotateRecord();return}
+  let float32;
+  try{const ab=await blob.arrayBuffer();const buf=await S.audioCtx.decodeAudioData(ab);float32=buf.getChannelData(0).slice(0)}
+  catch(e){if(S.listening&&!S.processing)rotateRecord();return}
+
+  // ═══ FIXED BARGE-IN: only during speaking, requires consecutive chunks ═══
+  const threshold=S.speaking?VAD_SPEAKING:VAD_NORMAL;
+  const hasVoice=checkVAD(float32,threshold);
+
+  if(hasVoice){
+    el.vadDot.classList.add('on');
+    if(!S.isSpeechActive){
+      S.isSpeechActive=true;
+      S.speechChunkCount=0;
+    }
+    S.speechChunkCount++;
+    S.audioBuffer.push(float32);
+    S.silenceFrames=0;
+
+    // Barge-in: ONLY during speaking, after 2+ chunks, with cooldown
+    if(S.speaking && S.speechChunkCount>=BARGEIN_MIN_CHUNKS && !S.bargeInCooldown){
+      console.log('[Barge-in] User interrupted TTS ('+S.speechChunkCount+' voice chunks)');
+      S.bargeInCooldown=true;
+      setTimeout(()=>{S.bargeInCooldown=false},BARGEIN_COOLDOWN_MS);
+      S.aborted=true;
+      stopSpeaking();
+      // DON'T set S.busy=false here — let sendMsg finish naturally
+    }
+  }else{
+    el.vadDot.classList.remove('on');
+    if(S.isSpeechActive){
+      S.silenceFrames++;
+      if(S.silenceFrames>=SILENCE_NEEDED){
+        // Only process if NOT currently busy with LLM generation
+        if(!S.busy){
+          await processBufferedAudio();
+        }else{
+          // During LLM generation: just keep buffering, process after
+          console.log('[VAD] Speech ended during LLM gen, buffering for later');
+          // Save buffer for processing after sendMsg completes
+          S.pendingAudio=true;
+        }
+      }
+    }
+  }
+  if(S.listening&&!S.processing)rotateRecord();
+}
+
+function checkVAD(f,threshold){let s=0;for(let i=0;i<f.length;i++)s+=f[i]*f[i];return Math.sqrt(s/f.length)>threshold}
+
+async function processBufferedAudio(){
+  if(S.audioBuffer.length===0||S.processing)return;
+  S.processing=true;S.pendingAudio=false;
+  el.vadLabel.textContent='Transcribing…';
+  const totalLen=S.audioBuffer.reduce((s,c)=>s+c.length,0);
+  const durS=totalLen/16000;
+  if(durS<MIN_SPEECH_S||durS>MAX_SPEECH_S){
+    console.log('[VAD] Duration',durS.toFixed(1)+'s rejected');
+    S.audioBuffer=[];S.isSpeechActive=false;S.silenceFrames=0;S.speechChunkCount=0;
+    S.processing=false;el.vadLabel.textContent='Listening';if(S.listening)rotateRecord();return;
+  }
+  const combined=new Float32Array(totalLen);let off=0;
+  for(const c of S.audioBuffer){combined.set(c,off);off+=c.length}
+  console.log('[VAD] Processing',S.audioBuffer.length,'chunks ('+durS.toFixed(1)+'s)');
+  S.audioBuffer=[];S.isSpeechActive=false;S.silenceFrames=0;S.speechChunkCount=0;
+  try{
+    const result=await S.asrPipe(combined,{chunk_length_s:30});
+    const text=(result?.text||'').trim();
+    console.log('[Whisper]',text);
+    if(!isWhisperNoise(text)&&text.length>2)sendMsg(text);
+    else console.log('[Whisper] Rejected:',text);
+  }catch(e){console.error('[Whisper]',e)}
+  S.processing=false;el.vadLabel.textContent='Listening';
+  if(S.listening)rotateRecord();
+}
+
+// ═══════════════════════════════════════
+// AUTO-LOAD + SEND
+// ═══════════════════════════════════════
+async function ensureModelLoaded(){
+  if(S.loaded)return true;
+  if(S.backend==='api'){S.loaded=true;setBB('api');stat('API');el.bU.hidden=false;addM('s','✓ API: '+el.apiUrl.value.trim());return true}
+  const v=el.mI.value.trim();if(!v){const list=S.backend==='gpu'?GPU_M:CPU_M;el.mI.value=(list.find(m=>m.def)||list[0]).id}
+  try{prog(0);const mid=el.mI.value.trim();
+    if(S.backend==='gpu')await loadGPU(mid);
+    else{const pre=CPU_M.find(m=>m.id===mid);let url;if(pre)url=pre.u;else{const c=parseCustom(mid);if(c)url=c.url;else{stat('Invalid');noprog();return false}}await loadCPU(url)}
+    S.loaded=true;setBB(S.backend);stat('Ready');el.bU.hidden=false;addM('s','✓ '+el.mI.value.trim());noprog();return true;
+  }catch(e){stat('Failed');addM('s','✗ '+(e?.message||e));noprog();return false}
+}
+
+async function sendMsg(text){
+  if(!text||S.busy)return;
+  if(!S.loaded){S.busy=true;setActionBtn('stop');addM('s','⏳ Loading model…');if(!await ensureModelLoaded()){S.busy=false;setActionBtn('send');return}el.setOv.classList.remove('on')}
+  S.busy=true;S.aborted=false;setActionBtn('stop');
+  addM('user',text);S.chat.push({role:'user',content:text});
+  const ab=addM('ai','…');
+  const temp=parseFloat(el.tSl.value),maxT=parseInt(el.kSl.value);
+  startTPS();
+  try{
+    stat('Generating…');
+    const onTok=x=>{if(!S.aborted){ab.textContent=x+' ▌';scr()}};
+    let r;
+    if(S.backend==='gpu')r=await chatGPU(S.chat,temp,maxT,onTok);
+    else if(S.backend==='cpu')r=await chatCPU(S.chat,temp,maxT,onTok);
+    else r=await chatAPI(S.chat,temp,maxT,onTok);
+
+    // If aborted during LLM gen (e.g. stop button), save partial
+    if(S.aborted){
+      r=r||ab.textContent.replace(' ▌','').replace('…','');
+      ab.textContent=(r||'…')+(r?' (interrupted)':'');
+      if(r)S.chat.push({role:'assistant',content:r});
+      return; // skip TTS
+    }
+
+    r=r||ab.textContent.replace(' ▌','');
+    ab.textContent=r||'(empty)';
+
+    // ═══ REPETITION DETECTION ═══
+    // If the model repeated its last response verbatim, reset its internal state
+    const prevAssistant=S.chat.filter(m=>m.role==='assistant').slice(-1)[0];
+    if(prevAssistant&&r===prevAssistant.content){
+      console.warn('[LLM] Detected verbatim repetition — resetting chat state');
+      addM('s','⚠ Model repeating — resetting');
+      try{await S.engine.resetChat()}catch(e){}
+      // Rebuild from just system prompt + last user message
+      S.chat=[S.chat[0],{role:'user',content:text}];
+      // Retry once
+      const onTok2=x=>{ab.textContent=x+' ▌';scr()};
+      r=await chatGPU(S.chat,temp,maxT,onTok2);
+      r=r||'(empty)';
+      ab.textContent=r;
+    }
+
+    S.chat.push({role:'assistant',content:r});
+    while(S.chat.length>21)S.chat.splice(1,2);
+
+    // Emotion
+    const emo=await classifyEmotion(r);
+    const emoTag=document.createElement('div');emoTag.className='emo-tag';
+    emoTag.textContent=`${emo.motion||'Neutral'} — ${emo.label} (${(emo.score*100).toFixed(0)}%)`;
+    ab.appendChild(emoTag);
+    if(emo.motion)setExpression(emo.motion);
+
+    // TTS — send full text to Soprano (it handles sentence splitting internally)
+    if(!S.aborted&&r){
+      if(S.ttsMode==='soprano'&&S.sopranoReady){
+        await speakWithSoprano(r);
+      }else{
+        // Browser TTS fallback — split sentences for faster start
+        const sents=r.match(/[^.!?]+[.!?]+[\s]*/g)||[r];
+        for(const s of sents){if(S.aborted)break;await browserTTS(s.trim())}
+      }
+    }
+  }catch(e){console.error(e);ab.textContent='Error: '+(e?.message||e);stat('Error')}
+  finally{
+    stopTPS();S.busy=false;setActionBtn('send');
+    setTimeout(()=>setExpression('Neutral'),1000);
+    // Process any audio buffered during LLM generation
+    if(S.pendingAudio&&S.audioBuffer.length>0){
+      setTimeout(()=>processBufferedAudio(),500);
+    }
+  }
+}
+
+function doSend(){const t=el.pr.value.trim();if(!t)return;el.pr.value='';el.pr.style.height='auto';sendMsg(t)}
+function doStop(){S.aborted=true;try{S.engine?.interruptGenerate?.()}catch(e){}stopSpeaking();S.busy=false;S.processing=false;setActionBtn('send');stat('Stopped')}
+async function doLoad(){if(S.busy)return;S.busy=true;el.bL.disabled=true;prog(0);await ensureModelLoaded();noprog();el.bL.disabled=false;S.busy=false}
+async function doUnload(){if(S.busy)return;try{if(S.backend==='gpu')await offGPU();else if(S.backend==='cpu')await offCPU()}catch(e){}S.loaded=false;S.engine=null;el.bU.hidden=true;setBB('off');stat('Unloaded')}
+
+// ═══════════════════════════════════════
+// PICKER + BACKEND + TTS MODE
+// ═══════════════════════════════════════
+function openPicker(){const list=S.backend==='gpu'?GPU_M:CPU_M;el.pkL.innerHTML='';const sep=document.createElement('div');sep.className='pk-sep';sep.textContent=S.backend==='gpu'?'WebLLM (GPU)':'GGUF (CPU)';el.pkL.appendChild(sep);for(const m of list){const d=document.createElement('div');d.className='pk-i';d.innerHTML=`<span class="nm">${m.n}</span><span class="sz">${m.sz}</span>`;d.onclick=()=>{el.mI.value=m.id;closePicker()};el.pkL.appendChild(d)}el.pkO.classList.add('on')}
+function closePicker(){el.pkO.classList.remove('on')}
+function setB(b){S.backend=b;el.rG.classList.toggle('on',b==='gpu');el.rC.classList.toggle('on',b==='cpu');el.rA.classList.toggle('on',b==='api');el.apiRow.style.display=b==='api'?'flex':'none';el.modelRow.style.display=b==='api'?'none':'flex';if(b!=='api'){const list=b==='gpu'?GPU_M:CPU_M;el.mI.value=(list.find(m=>m.def)||list[0]).id}}
+function setTTSMode(m){S.ttsMode=m;el.ttsSop.classList.toggle('on',m==='soprano');el.ttsBr.classList.toggle('on',m==='browser');if(m==='soprano'&&!S.sopranoReady&&!S.sopranoLoading)initSopranoWorker().catch(()=>{})}
+
+// ═══════════════════════════════════════
+// WIRING
+// ═══════════════════════════════════════
+el.rG.onclick=()=>{if(!S.busy&&S.gpuOk)setB('gpu')};
+el.rC.onclick=()=>{if(!S.busy)setB('cpu')};
+el.rA.onclick=()=>{if(!S.busy)setB('api')};
+el.ttsSop.onclick=()=>setTTSMode('soprano');
+el.ttsBr.onclick=()=>setTTSMode('browser');
+el.bL.onclick=doLoad;el.bU.onclick=doUnload;
+el.bCl.onclick=()=>{S.chat=[S.chat[0]];el.ms.innerHTML='';addM('s','Cleared.')};
+el.actBtn.onclick=()=>{if(S.busy)doStop();else doSend()};
+el.gearBtn.onclick=()=>el.setOv.classList.toggle('on');
+el.setX.onclick=()=>el.setOv.classList.remove('on');
+el.setOv.onclick=e=>{if(e.target===el.setOv)el.setOv.classList.remove('on')};
+el.tSl.oninput=()=>el.tVl.textContent=el.tSl.value;
+el.kSl.oninput=()=>el.kVl.textContent=el.kSl.value;
+el.pr.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend()}});
+el.pr.addEventListener('input',()=>{el.pr.style.height='auto';el.pr.style.height=Math.min(el.pr.scrollHeight,100)+'px'});
+el.mB.onclick=e=>{e.preventDefault();openPicker()};
+el.mI.addEventListener('focus',()=>{if(S.backend!=='api')openPicker()});
+el.pkX.onclick=closePicker;el.pkO.onclick=e=>{if(e.target===el.pkO)closePicker()};
+
+el.micB.onclick=async()=>{
+  if(S.listening){stopListeningFull();return}
+  if(!S.mediaRecorder){addM('s','🎤 Setting up mic…');if(!await setupMic())return}
+  if(!S.asrReady){await loadASR();if(!S.asrReady)return}
+  startListening();
+};
+
+if(window.speechSynthesis){speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();speechSynthesis.getVoices()}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+(async()=>{
+  const g=await detectGPU();S.gpuOk=g.ok;
+  if(g.ok){el.gpuI.textContent='✓ WebGPU: '+g.name;el.gpuI.className='inf ok';setB('gpu')}
+  else{el.gpuI.textContent='✗ No WebGPU ('+g.why+')';el.gpuI.className='inf er';el.rG.classList.add('off');setB('cpu')}
+  el.thrI.textContent='Cores: '+(navigator.hardwareConcurrency||'?')+' · MT: '+(typeof crossOriginIsolated!=='undefined'&&crossOriginIsolated?'✓':'✗');
+  stat('⚙ Pick model');
+  initAvatar();
+  setTimeout(()=>loadEmotion(),3000);
+  // Start loading Soprano TTS in background
+  setTimeout(()=>{if(S.ttsMode==='soprano')initSopranoWorker().catch(()=>{})},1500);
+})();
+</script>
+</body>
+</html>
